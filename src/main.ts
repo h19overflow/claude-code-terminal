@@ -168,18 +168,10 @@ export default class ClaudeCodeTerminalPlugin extends Plugin {
 
         // === Split Pane Commands ===
 
-        // Split terminal horizontally
-        this.addCommand({
-            id: 'split-terminal-horizontal',
-            name: 'Split Terminal Horizontally',
-            callback: () => this.splitHorizontal(),
-            hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 's' }]
-        });
-
-        // Split terminal vertically
+        // Split terminal vertically (side-by-side panes)
         this.addCommand({
             id: 'split-terminal-vertical',
-            name: 'Split Terminal Vertically',
+            name: 'Split Terminal',
             callback: () => this.splitVertical(),
             hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'v' }]
         });
@@ -484,15 +476,7 @@ export default class ClaudeCodeTerminalPlugin extends Plugin {
     // === Split Pane Methods ===
 
     /**
-     * Split terminal horizontally
-     */
-    splitHorizontal() {
-        const view = this.getTerminalView();
-        view?.splitHorizontal();
-    }
-
-    /**
-     * Split terminal vertically
+     * Split terminal vertically (side-by-side panes)
      */
     splitVertical() {
         const view = this.getTerminalView();

@@ -128,19 +128,21 @@ export class SplitLayoutManager {
     }
 
     /**
-     * Close a pane
+     * Close a pane and promote sibling to fill the space
+     * Returns the instance ID of the closed pane for cleanup
      */
-    closePane(paneId: PaneId): void {
+    closePane(paneId: PaneId): string | undefined {
         const node = this.findNode(paneId);
         if (!node || node.type !== 'pane') {
-            return;
+            return undefined;
         }
 
+        const closedInstanceId = node.instanceId;
         const parent = node.parent;
 
         // If this is the root and only pane, can't close
         if (!parent) {
-            return;
+            return undefined;
         }
 
         // Find sibling
@@ -151,8 +153,9 @@ export class SplitLayoutManager {
 
             const grandparent = parent.parent;
 
-            // Replace parent with sibling
+            // Replace parent split with sibling (sibling inherits parent's position)
             if (grandparent && grandparent.type === 'split' && grandparent.children) {
+                // Sibling replaces parent in grandparent's children
                 if (grandparent.children[0].id === parent.id) {
                     grandparent.children[0] = sibling;
                 } else {
@@ -160,18 +163,21 @@ export class SplitLayoutManager {
                 }
                 sibling.parent = grandparent;
             } else {
-                // Parent was root
+                // Parent was root - sibling becomes new root
                 this.layout.root = sibling;
                 sibling.parent = null;
             }
 
-            // Update active pane if needed
+            // Update active pane to sibling (or first pane within sibling if it's a split)
             if (this.layout.activePane === paneId) {
                 this.layout.activePane = this.getFirstPaneId(sibling);
             }
 
             this.notifyChange();
+            return closedInstanceId;
         }
+
+        return undefined;
     }
 
     /**
@@ -186,12 +192,15 @@ export class SplitLayoutManager {
 
     /**
      * Set active pane
+     * @param triggerRender - If false, won't trigger onChange (for focus-only updates)
      */
-    setActivePane(paneId: PaneId): void {
+    setActivePane(paneId: PaneId, triggerRender: boolean = true): void {
         const node = this.findNode(paneId);
         if (node && node.type === 'pane') {
             this.layout.activePane = paneId;
-            this.notifyChange();
+            if (triggerRender) {
+                this.notifyChange();
+            }
         }
     }
 
@@ -264,23 +273,27 @@ export class SplitLayoutManager {
     }
 
     /**
-     * Navigate to next pane
+     * Navigate to next pane (returns the new pane ID without triggering render)
      */
-    focusNextPane(): void {
+    focusNextPane(): PaneId {
         const panes = this.getAllPaneIds();
         const currentIndex = panes.indexOf(this.layout.activePane);
         const nextIndex = (currentIndex + 1) % panes.length;
-        this.setActivePane(panes[nextIndex]);
+        const nextPaneId = panes[nextIndex];
+        this.setActivePane(nextPaneId, false);
+        return nextPaneId;
     }
 
     /**
-     * Navigate to previous pane
+     * Navigate to previous pane (returns the new pane ID without triggering render)
      */
-    focusPreviousPane(): void {
+    focusPreviousPane(): PaneId {
         const panes = this.getAllPaneIds();
         const currentIndex = panes.indexOf(this.layout.activePane);
         const prevIndex = currentIndex === 0 ? panes.length - 1 : currentIndex - 1;
-        this.setActivePane(panes[prevIndex]);
+        const prevPaneId = panes[prevIndex];
+        this.setActivePane(prevPaneId, false);
+        return prevPaneId;
     }
 
     /**

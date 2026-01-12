@@ -1310,6 +1310,16 @@
     overflow: hidden;
     background-color: var(--background-primary);
     transition: opacity 0.1s ease;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Root pane (single pane, not inside a split) - fills entire container */
+.split-pane.split-pane-root {
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1;
 }
 
 .split-pane.active {

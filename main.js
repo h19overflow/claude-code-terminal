@@ -10195,16 +10195,18 @@ var SplitLayoutManager = class {
     return newPane.id;
   }
   /**
-   * Close a pane
+   * Close a pane and promote sibling to fill the space
+   * Returns the instance ID of the closed pane for cleanup
    */
   closePane(paneId) {
     const node = this.findNode(paneId);
     if (!node || node.type !== "pane") {
-      return;
+      return void 0;
     }
+    const closedInstanceId = node.instanceId;
     const parent = node.parent;
     if (!parent) {
-      return;
+      return void 0;
     }
     if (parent.type === "split" && parent.children) {
       const sibling = parent.children[0].id === node.id ? parent.children[1] : parent.children[0];
@@ -10224,7 +10226,9 @@ var SplitLayoutManager = class {
         this.layout.activePane = this.getFirstPaneId(sibling);
       }
       this.notifyChange();
+      return closedInstanceId;
     }
+    return void 0;
   }
   /**
    * Get first pane ID in tree
@@ -10237,12 +10241,15 @@ var SplitLayoutManager = class {
   }
   /**
    * Set active pane
+   * @param triggerRender - If false, won't trigger onChange (for focus-only updates)
    */
-  setActivePane(paneId) {
+  setActivePane(paneId, triggerRender = true) {
     const node = this.findNode(paneId);
     if (node && node.type === "pane") {
       this.layout.activePane = paneId;
-      this.notifyChange();
+      if (triggerRender) {
+        this.notifyChange();
+      }
     }
   }
   /**
@@ -10307,22 +10314,26 @@ var SplitLayoutManager = class {
     }
   }
   /**
-   * Navigate to next pane
+   * Navigate to next pane (returns the new pane ID without triggering render)
    */
   focusNextPane() {
     const panes = this.getAllPaneIds();
     const currentIndex = panes.indexOf(this.layout.activePane);
     const nextIndex = (currentIndex + 1) % panes.length;
-    this.setActivePane(panes[nextIndex]);
+    const nextPaneId = panes[nextIndex];
+    this.setActivePane(nextPaneId, false);
+    return nextPaneId;
   }
   /**
-   * Navigate to previous pane
+   * Navigate to previous pane (returns the new pane ID without triggering render)
    */
   focusPreviousPane() {
     const panes = this.getAllPaneIds();
     const currentIndex = panes.indexOf(this.layout.activePane);
     const prevIndex = currentIndex === 0 ? panes.length - 1 : currentIndex - 1;
-    this.setActivePane(panes[prevIndex]);
+    const prevPaneId = panes[prevIndex];
+    this.setActivePane(prevPaneId, false);
+    return prevPaneId;
   }
   /**
    * Notify listeners of layout change
@@ -10378,6 +10389,11 @@ var SplitPaneRenderer = class {
     this.container.empty();
     this.paneElements.clear();
     const rootEl = this.renderNode(layout.root, layout.activePane);
+    if (layout.root.type === "pane") {
+      rootEl.style.width = "100%";
+      rootEl.style.height = "100%";
+      rootEl.addClass("split-pane-root");
+    }
     this.container.appendChild(rootEl);
   }
   /**
@@ -10404,10 +10420,8 @@ var SplitPaneRenderer = class {
     if (node.id === activePane) {
       paneEl.addClass("active");
     }
-    paneEl.addEventListener("click", (e) => {
-      if (e.target === paneEl) {
-        this.callbacks.onPaneClick(node.id);
-      }
+    paneEl.addEventListener("mousedown", (e) => {
+      this.callbacks.onPaneClick(node.id);
     });
     this.paneElements.set(node.id, paneEl);
     return paneEl;
@@ -12126,7 +12140,8 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
     this.splitContainer = contentEl.createDiv({ cls: "claude-terminal-split-container" });
     this.splitRenderer = new SplitPaneRenderer(this.splitContainer, {
       onPaneClick: (paneId) => {
-        this.splitLayoutManager.setActivePane(paneId);
+        this.splitLayoutManager.setActivePane(paneId, false);
+        this.updateActivePaneVisual(paneId);
         this.focusPaneTerminal(paneId);
       },
       onSplitResize: (splitId, sizes) => {
@@ -12346,38 +12361,60 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
   }
   // === Split Pane Methods ===
   /**
-   * Split current pane horizontally
-   */
-  async splitHorizontal() {
-    const activePane = this.splitLayoutManager.getActivePane();
-    if (!this.splitLayoutManager.canSplit(activePane)) {
-      return;
-    }
-    const newInstanceId = await this.createNewTerminal();
-    const newPaneId = this.splitLayoutManager.splitPane(activePane, "horizontal", newInstanceId);
-    if (newPaneId) {
-      const currentInstanceId = this.terminalManager.getActiveInstanceId();
-      if (currentInstanceId) {
-        this.splitLayoutManager.setPaneInstanceId(activePane, currentInstanceId);
-      }
-    }
-  }
-  /**
-   * Split current pane vertically
+   * Split current pane (creates side-by-side terminals with vertical divider)
    */
   async splitVertical() {
     const activePane = this.splitLayoutManager.getActivePane();
     if (!this.splitLayoutManager.canSplit(activePane)) {
       return;
     }
-    const newInstanceId = await this.createNewTerminal();
-    const newPaneId = this.splitLayoutManager.splitPane(activePane, "vertical", newInstanceId);
+    const existingInstanceId = this.splitLayoutManager.getPaneInstanceId(activePane);
+    const newInstanceId = await this.createTerminalInstance();
+    const newPaneId = this.splitLayoutManager.splitPane(activePane, "horizontal", newInstanceId);
     if (newPaneId) {
-      const currentInstanceId = this.terminalManager.getActiveInstanceId();
-      if (currentInstanceId) {
-        this.splitLayoutManager.setPaneInstanceId(activePane, currentInstanceId);
+      if (existingInstanceId) {
+        this.splitLayoutManager.setPaneInstanceId(activePane, existingInstanceId);
       }
+      this.renderSplitLayout();
+      const panel = this.panels.get(newInstanceId);
+      if (panel) {
+        const project = this.plugin.projectManager.createProjectFromPath(
+          this.plugin.getVaultPath()
+        );
+        await panel.initialize(project);
+      }
+      this.splitLayoutManager.setActivePane(newPaneId);
+      this.focusPaneTerminal(newPaneId);
     }
+  }
+  /**
+   * Create a terminal instance without mounting to a pane
+   * Used by split operations to create terminals before pane assignment
+   */
+  async createTerminalInstance() {
+    const project = this.plugin.projectManager.createProjectFromPath(
+      this.plugin.getVaultPath()
+    );
+    const instance = this.terminalManager.createInstance(project);
+    const panelContainer = document.createElement("div");
+    panelContainer.addClass("terminal-panel-wrapper");
+    panelContainer.setAttribute("data-instance-id", instance.id);
+    const panel = new TerminalPanel(
+      panelContainer,
+      this.plugin.settings,
+      this.getPluginPath(),
+      {
+        onStatusChange: (status) => {
+          this.terminalManager.updateInstanceStatus(instance.id, status);
+        },
+        onTitleChange: (title) => {
+          this.terminalManager.renameInstance(instance.id, title);
+        }
+      },
+      this.plugin.getVaultPath()
+    );
+    this.panels.set(instance.id, panel);
+    return instance.id;
   }
   /**
    * Close current split pane
@@ -12387,66 +12424,81 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
     if (!this.splitLayoutManager.canClose(activePane)) {
       return;
     }
-    const instanceId = this.splitLayoutManager.getPaneInstanceId(activePane);
-    if (instanceId) {
-      this.closeInstance(instanceId);
+    const closedInstanceId = this.splitLayoutManager.closePane(activePane);
+    if (closedInstanceId) {
+      const panel = this.panels.get(closedInstanceId);
+      if (panel) {
+        panel.destroy();
+        this.panels.delete(closedInstanceId);
+      }
+      this.terminalManager.removeInstance(closedInstanceId);
     }
-    this.splitLayoutManager.closePane(activePane);
+    this.renderSplitLayout();
+    const newActivePane = this.splitLayoutManager.getActivePane();
+    this.focusPaneTerminal(newActivePane);
   }
   /**
-   * Render split layout
+   * Render split layout - mounts all panels into their respective panes
    */
   renderSplitLayout() {
     if (!this.splitRenderer)
       return;
-    console.log("[TerminalView] renderSplitLayout called");
     const layout = this.splitLayoutManager.getLayout();
     this.splitRenderer.render(layout);
     const paneIds = this.splitLayoutManager.getAllPaneIds();
-    console.log("[TerminalView] PaneIds:", paneIds);
     for (const paneId of paneIds) {
       const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
-      console.log("[TerminalView] Pane", paneId, "instanceId:", instanceId);
       if (instanceId) {
         const panel = this.panels.get(instanceId);
         const paneEl = this.splitRenderer.getPaneElement(paneId);
-        console.log("[TerminalView] Panel exists:", !!panel, "paneEl exists:", !!paneEl);
         if (panel && paneEl) {
-          const panelContainer = paneEl.querySelector(".terminal-panel-wrapper");
-          if (!panelContainer) {
-            console.log("[TerminalView] Appending panel container to pane");
+          const existingContainer = paneEl.querySelector(".terminal-panel-wrapper");
+          if (!existingContainer) {
             paneEl.appendChild(panel.getContainer());
           }
           panel.show();
-          console.log("[TerminalView] Panel show() called, paneEl.innerHTML length:", paneEl.innerHTML.length);
         }
       }
     }
   }
   /**
-   * Focus terminal in pane
+   * Update visual active state without re-rendering
+   */
+  updateActivePaneVisual(paneId) {
+    if (!this.splitContainer)
+      return;
+    this.splitContainer.querySelectorAll(".split-pane.active").forEach((el) => {
+      el.removeClass("active");
+    });
+    const paneEl = this.splitContainer.querySelector(`[data-pane-id="${paneId}"]`);
+    paneEl == null ? void 0 : paneEl.addClass("active");
+  }
+  /**
+   * Focus terminal in pane (without hiding other split panes)
    */
   focusPaneTerminal(paneId) {
     const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
     if (instanceId) {
-      this.switchToInstance(instanceId);
+      this.terminalManager.setActiveInstance(instanceId);
+      const panel = this.panels.get(instanceId);
+      panel == null ? void 0 : panel.focus();
     }
   }
   /**
    * Navigate to next split pane
    */
   focusNextSplitPane() {
-    this.splitLayoutManager.focusNextPane();
-    const activePane = this.splitLayoutManager.getActivePane();
-    this.focusPaneTerminal(activePane);
+    const newPaneId = this.splitLayoutManager.focusNextPane();
+    this.updateActivePaneVisual(newPaneId);
+    this.focusPaneTerminal(newPaneId);
   }
   /**
    * Navigate to previous split pane
    */
   focusPreviousSplitPane() {
-    this.splitLayoutManager.focusPreviousPane();
-    const activePane = this.splitLayoutManager.getActivePane();
-    this.focusPaneTerminal(activePane);
+    const newPaneId = this.splitLayoutManager.focusPreviousPane();
+    this.updateActivePaneVisual(newPaneId);
+    this.focusPaneTerminal(newPaneId);
   }
   /**
    * Cleanup on close
@@ -12984,14 +13036,8 @@ var ClaudeCodeTerminalPlugin = class extends import_obsidian8.Plugin {
       callback: () => this.linkFileInClaude()
     });
     this.addCommand({
-      id: "split-terminal-horizontal",
-      name: "Split Terminal Horizontally",
-      callback: () => this.splitHorizontal(),
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "s" }]
-    });
-    this.addCommand({
       id: "split-terminal-vertical",
-      name: "Split Terminal Vertically",
+      name: "Split Terminal",
       callback: () => this.splitVertical(),
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "v" }]
     });
@@ -13235,14 +13281,7 @@ var ClaudeCodeTerminalPlugin = class extends import_obsidian8.Plugin {
   }
   // === Split Pane Methods ===
   /**
-   * Split terminal horizontally
-   */
-  splitHorizontal() {
-    const view = this.getTerminalView();
-    view == null ? void 0 : view.splitHorizontal();
-  }
-  /**
-   * Split terminal vertically
+   * Split terminal vertically (side-by-side panes)
    */
   splitVertical() {
     const view = this.getTerminalView();

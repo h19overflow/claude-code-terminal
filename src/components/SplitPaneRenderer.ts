@@ -32,6 +32,14 @@ export class SplitPaneRenderer {
         this.paneElements.clear();
 
         const rootEl = this.renderNode(layout.root, layout.activePane);
+
+        // Ensure root element fills container (critical for single pane after close)
+        if (layout.root.type === 'pane') {
+            rootEl.style.width = '100%';
+            rootEl.style.height = '100%';
+            rootEl.addClass('split-pane-root');
+        }
+
         this.container.appendChild(rootEl);
     }
 
@@ -62,11 +70,10 @@ export class SplitPaneRenderer {
             paneEl.addClass('active');
         }
 
-        // Click to focus
-        paneEl.addEventListener('click', (e) => {
-            if (e.target === paneEl) {
-                this.callbacks.onPaneClick(node.id);
-            }
+        // Click anywhere in pane to focus (including terminal)
+        paneEl.addEventListener('mousedown', (e) => {
+            // Trigger focus on any click within the pane
+            this.callbacks.onPaneClick(node.id);
         });
 
         this.paneElements.set(node.id, paneEl);

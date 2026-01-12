@@ -120,7 +120,11 @@ export class ClaudeTerminalView extends ItemView {
         // Initialize split renderer
         this.splitRenderer = new SplitPaneRenderer(this.splitContainer, {
             onPaneClick: (paneId) => {
-                this.splitLayoutManager.setActivePane(paneId);
+                // Update active pane without triggering re-render
+                this.splitLayoutManager.setActivePane(paneId, false);
+                // Update visual active state
+                this.updateActivePaneVisual(paneId);
+                // Focus the terminal
                 this.focusPaneTerminal(paneId);
             },
             onSplitResize: (splitId, sizes) => {
@@ -387,31 +391,7 @@ export class ClaudeTerminalView extends ItemView {
     // === Split Pane Methods ===
 
     /**
-     * Split current pane horizontally
-     */
-    async splitHorizontal(): Promise<void> {
-        const activePane = this.splitLayoutManager.getActivePane();
-        if (!this.splitLayoutManager.canSplit(activePane)) {
-            return;
-        }
-
-        // Create new terminal instance
-        const newInstanceId = await this.createNewTerminal();
-
-        // Split the pane
-        const newPaneId = this.splitLayoutManager.splitPane(activePane, 'horizontal', newInstanceId);
-
-        if (newPaneId) {
-            // Assign current terminal to old pane
-            const currentInstanceId = this.terminalManager.getActiveInstanceId();
-            if (currentInstanceId) {
-                this.splitLayoutManager.setPaneInstanceId(activePane, currentInstanceId);
-            }
-        }
-    }
-
-    /**
-     * Split current pane vertically
+     * Split current pane (creates side-by-side terminals with vertical divider)
      */
     async splitVertical(): Promise<void> {
         const activePane = this.splitLayoutManager.getActivePane();
@@ -419,19 +399,75 @@ export class ClaudeTerminalView extends ItemView {
             return;
         }
 
-        // Create new terminal instance
-        const newInstanceId = await this.createNewTerminal();
+        // Save the current pane's terminal instance ID BEFORE doing anything
+        const existingInstanceId = this.splitLayoutManager.getPaneInstanceId(activePane);
 
-        // Split the pane
-        const newPaneId = this.splitLayoutManager.splitPane(activePane, 'vertical', newInstanceId);
+        // Create new terminal instance (this will be placed in the new pane)
+        const newInstanceId = await this.createTerminalInstance();
+
+        // Split the pane horizontally (flex-row = side-by-side with vertical divider)
+        const newPaneId = this.splitLayoutManager.splitPane(activePane, 'horizontal', newInstanceId);
 
         if (newPaneId) {
-            // Assign current terminal to old pane
-            const currentInstanceId = this.terminalManager.getActiveInstanceId();
-            if (currentInstanceId) {
-                this.splitLayoutManager.setPaneInstanceId(activePane, currentInstanceId);
+            // Restore original terminal to the original pane (now child of split)
+            if (existingInstanceId) {
+                this.splitLayoutManager.setPaneInstanceId(activePane, existingInstanceId);
             }
+
+            // Re-render to mount both terminals
+            this.renderSplitLayout();
+
+            // Initialize and show the new terminal in the new pane
+            const panel = this.panels.get(newInstanceId);
+            if (panel) {
+                const project = this.plugin.projectManager.createProjectFromPath(
+                    this.plugin.getVaultPath()
+                );
+                await panel.initialize(project);
+            }
+
+            // Focus the new pane
+            this.splitLayoutManager.setActivePane(newPaneId);
+            this.focusPaneTerminal(newPaneId);
         }
+    }
+
+    /**
+     * Create a terminal instance without mounting to a pane
+     * Used by split operations to create terminals before pane assignment
+     */
+    private async createTerminalInstance(): Promise<string> {
+        const project = this.plugin.projectManager.createProjectFromPath(
+            this.plugin.getVaultPath()
+        );
+
+        // Create instance in manager
+        const instance = this.terminalManager.createInstance(project);
+
+        // Create panel container
+        const panelContainer = document.createElement('div');
+        panelContainer.addClass('terminal-panel-wrapper');
+        panelContainer.setAttribute('data-instance-id', instance.id);
+
+        // Create panel (but don't initialize yet - needs DOM mounting first)
+        const panel = new TerminalPanel(
+            panelContainer,
+            this.plugin.settings,
+            this.getPluginPath(),
+            {
+                onStatusChange: (status) => {
+                    this.terminalManager.updateInstanceStatus(instance.id, status);
+                },
+                onTitleChange: (title) => {
+                    this.terminalManager.renameInstance(instance.id, title);
+                }
+            },
+            this.plugin.getVaultPath()
+        );
+
+        this.panels.set(instance.id, panel);
+
+        return instance.id;
     }
 
     /**
@@ -443,60 +479,88 @@ export class ClaudeTerminalView extends ItemView {
             return;
         }
 
-        // Get instance ID and close it
-        const instanceId = this.splitLayoutManager.getPaneInstanceId(activePane);
-        if (instanceId) {
-            this.closeInstance(instanceId);
+        // Close pane in layout manager first (returns instance ID for cleanup)
+        const closedInstanceId = this.splitLayoutManager.closePane(activePane);
+
+        // Destroy the terminal panel if it exists
+        if (closedInstanceId) {
+            const panel = this.panels.get(closedInstanceId);
+            if (panel) {
+                panel.destroy();
+                this.panels.delete(closedInstanceId);
+            }
+            // Remove from terminal manager
+            this.terminalManager.removeInstance(closedInstanceId);
         }
 
-        // Close the pane
-        this.splitLayoutManager.closePane(activePane);
+        // Re-render layout to reflect changes
+        this.renderSplitLayout();
+
+        // Focus the new active pane's terminal
+        const newActivePane = this.splitLayoutManager.getActivePane();
+        this.focusPaneTerminal(newActivePane);
     }
 
     /**
-     * Render split layout
+     * Render split layout - mounts all panels into their respective panes
      */
     private renderSplitLayout(): void {
         if (!this.splitRenderer) return;
 
-        console.log('[TerminalView] renderSplitLayout called');
-
         const layout = this.splitLayoutManager.getLayout();
         this.splitRenderer.render(layout);
 
-        // Mount panels into panes
+        // Mount panels into panes - ALL panels in split layout should be visible
         const paneIds = this.splitLayoutManager.getAllPaneIds();
-        console.log('[TerminalView] PaneIds:', paneIds);
 
         for (const paneId of paneIds) {
             const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
-            console.log('[TerminalView] Pane', paneId, 'instanceId:', instanceId);
 
             if (instanceId) {
                 const panel = this.panels.get(instanceId);
                 const paneEl = this.splitRenderer.getPaneElement(paneId);
-                console.log('[TerminalView] Panel exists:', !!panel, 'paneEl exists:', !!paneEl);
 
                 if (panel && paneEl) {
-                    const panelContainer = paneEl.querySelector('.terminal-panel-wrapper') as HTMLElement;
-                    if (!panelContainer) {
-                        console.log('[TerminalView] Appending panel container to pane');
+                    // Check if panel container already exists in this pane
+                    const existingContainer = paneEl.querySelector('.terminal-panel-wrapper');
+                    if (!existingContainer) {
                         paneEl.appendChild(panel.getContainer());
                     }
+                    // Show all panels in split layout (show() triggers refit)
                     panel.show();
-                    console.log('[TerminalView] Panel show() called, paneEl.innerHTML length:', paneEl.innerHTML.length);
                 }
             }
         }
     }
 
     /**
-     * Focus terminal in pane
+     * Update visual active state without re-rendering
+     */
+    private updateActivePaneVisual(paneId: PaneId): void {
+        if (!this.splitContainer) return;
+
+        // Remove active class from all panes
+        this.splitContainer.querySelectorAll('.split-pane.active').forEach(el => {
+            el.removeClass('active');
+        });
+
+        // Add active class to target pane
+        const paneEl = this.splitContainer.querySelector(`[data-pane-id="${paneId}"]`);
+        paneEl?.addClass('active');
+    }
+
+    /**
+     * Focus terminal in pane (without hiding other split panes)
      */
     private focusPaneTerminal(paneId: PaneId): void {
         const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
         if (instanceId) {
-            this.switchToInstance(instanceId);
+            // Update active instance in manager (for tabs display)
+            this.terminalManager.setActiveInstance(instanceId);
+
+            // Focus the terminal in the pane
+            const panel = this.panels.get(instanceId);
+            panel?.focus();
         }
     }
 
@@ -504,18 +568,18 @@ export class ClaudeTerminalView extends ItemView {
      * Navigate to next split pane
      */
     focusNextSplitPane(): void {
-        this.splitLayoutManager.focusNextPane();
-        const activePane = this.splitLayoutManager.getActivePane();
-        this.focusPaneTerminal(activePane);
+        const newPaneId = this.splitLayoutManager.focusNextPane();
+        this.updateActivePaneVisual(newPaneId);
+        this.focusPaneTerminal(newPaneId);
     }
 
     /**
      * Navigate to previous split pane
      */
     focusPreviousSplitPane(): void {
-        this.splitLayoutManager.focusPreviousPane();
-        const activePane = this.splitLayoutManager.getActivePane();
-        this.focusPaneTerminal(activePane);
+        const newPaneId = this.splitLayoutManager.focusPreviousPane();
+        this.updateActivePaneVisual(newPaneId);
+        this.focusPaneTerminal(newPaneId);
     }
 
     /**
