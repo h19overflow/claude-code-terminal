@@ -165,10 +165,9 @@ export class ClaudeTerminalView extends ItemView {
         const instance = this.terminalManager.createInstance(project);
 
         // Create panel container
-        const panelContainer = this.panelsContainer!.createDiv({
-            cls: 'terminal-panel-wrapper',
-            attr: { 'data-instance-id': instance.id }
-        });
+        const panelContainer = document.createElement('div');
+        panelContainer.addClass('terminal-panel-wrapper');
+        panelContainer.setAttribute('data-instance-id', instance.id);
 
         // Create panel
         const panel = new TerminalPanel(
@@ -195,6 +194,11 @@ export class ClaudeTerminalView extends ItemView {
         if (project) {
             this.plugin.projectManager.addToRecent(project);
         }
+
+        // Update split layout with new instance
+        const activePane = this.splitLayoutManager.getActivePane();
+        this.splitLayoutManager.setPaneInstanceId(activePane, instance.id);
+        this.renderSplitLayout();
 
         // Switch to this instance
         this.switchToInstance(instance.id);

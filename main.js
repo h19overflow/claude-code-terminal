@@ -12089,10 +12089,9 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
       );
     }
     const instance = this.terminalManager.createInstance(project);
-    const panelContainer = this.panelsContainer.createDiv({
-      cls: "terminal-panel-wrapper",
-      attr: { "data-instance-id": instance.id }
-    });
+    const panelContainer = document.createElement("div");
+    panelContainer.addClass("terminal-panel-wrapper");
+    panelContainer.setAttribute("data-instance-id", instance.id);
     const panel = new TerminalPanel(
       panelContainer,
       this.plugin.settings,
@@ -12113,6 +12112,9 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
     if (project) {
       this.plugin.projectManager.addToRecent(project);
     }
+    const activePane = this.splitLayoutManager.getActivePane();
+    this.splitLayoutManager.setPaneInstanceId(activePane, instance.id);
+    this.renderSplitLayout();
     this.switchToInstance(instance.id);
     return instance.id;
   }
