@@ -54,13 +54,16 @@ function handleMessage(msg) {
 
 function spawnPty(options) {
     try {
+        // Use ConPTY on Windows 10+ (build 18362+), fallback to winpty on older
+        const useConpty = process.platform === 'win32';
+
         ptyProcess = pty.spawn(options.shell, options.args || [], {
             name: 'xterm-256color',
             cols: options.cols || 80,
             rows: options.rows || 24,
             cwd: options.cwd,
             env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
-            useConpty: false
+            useConpty: useConpty
         });
 
         send('spawned', { pid: ptyProcess.pid });

@@ -10124,11 +10124,12 @@ var SplitLayoutManager = class {
   constructor(onChange) {
     this.nextId = 1;
     this.onChange = onChange;
+    const rootPane = this.createPaneNode(null, null);
     this.layout = {
-      root: this.createPaneNode(null, null),
-      activePane: this.nextId.toString()
+      root: rootPane,
+      activePane: rootPane.id
+      // Use the actual pane ID
     };
-    this.nextId++;
   }
   /**
    * Create a pane node
@@ -10334,11 +10335,11 @@ var SplitLayoutManager = class {
    */
   reset() {
     this.nextId = 1;
+    const rootPane = this.createPaneNode(null, null);
     this.layout = {
-      root: this.createPaneNode(null, null),
-      activePane: this.nextId.toString()
+      root: rootPane,
+      activePane: rootPane.id
     };
-    this.nextId++;
     this.notifyChange();
   }
   /**
@@ -10776,6 +10777,41 @@ function truncatePath(fullPath, maxLength = 50) {
 // src/services/PtyBridge.ts
 var import_child_process = require("child_process");
 var path2 = __toESM(require("path"));
+var fs2 = __toESM(require("fs"));
+function findNodeExecutable() {
+  const windowsPaths = [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "C:\\Program Files (x86)\\nodejs\\node.exe",
+    process.env.APPDATA ? path2.join(process.env.APPDATA, "..", "Local", "Programs", "nodejs", "node.exe") : "",
+    process.env.PROGRAMFILES ? path2.join(process.env.PROGRAMFILES, "nodejs", "node.exe") : ""
+  ].filter(Boolean);
+  for (const nodePath of windowsPaths) {
+    if (fs2.existsSync(nodePath)) {
+      return nodePath;
+    }
+  }
+  if (process.platform === "win32") {
+    try {
+      const result = (0, import_child_process.execSync)("where node", { encoding: "utf8", windowsHide: true });
+      const nodePath = result.split("\n")[0].trim();
+      if (nodePath && fs2.existsSync(nodePath)) {
+        return nodePath;
+      }
+    } catch (e) {
+    }
+  }
+  if (process.platform !== "win32") {
+    try {
+      const result = (0, import_child_process.execSync)("which node", { encoding: "utf8" });
+      const nodePath = result.trim();
+      if (nodePath && fs2.existsSync(nodePath)) {
+        return nodePath;
+      }
+    } catch (e) {
+    }
+  }
+  return "node";
+}
 var PtyBridge = class {
   constructor(pluginPath, vaultPath) {
     this.ptyHost = null;
@@ -10827,17 +10863,23 @@ var PtyBridge = class {
       return true;
     }
     const ptyHostPath = path2.join(this.pluginPath, "pty-host.js");
+    const nodeExe = findNodeExecutable();
     this.setStatus("connecting");
+    console.log("[PtyBridge] Using Node.js:", nodeExe);
+    console.log("[PtyBridge] PTY host path:", ptyHostPath);
     try {
-      this.ptyHost = (0, import_child_process.spawn)("node", [ptyHostPath], {
+      this.ptyHost = (0, import_child_process.spawn)(nodeExe, [ptyHostPath], {
         cwd: this.pluginPath,
         env: { ...process.env },
-        stdio: ["pipe", "pipe", "pipe"]
+        stdio: ["pipe", "pipe", "pipe"],
+        // Windows-specific: hide the console window
+        windowsHide: true
       });
       this.setupEventHandlers();
       return true;
     } catch (error) {
       console.error("[PtyBridge] Failed to start PTY host:", error);
+      console.error("[PtyBridge] Node path was:", nodeExe);
       this.setStatus("error");
       (_a = this.onError) == null ? void 0 : _a.call(this, error.message);
       return false;
@@ -11358,11 +11400,39 @@ var TerminalPanel = class {
    * Handle shell spawned
    */
   handleSpawned(pid) {
+    console.log("[TerminalPanel] handleSpawned called, PID:", pid);
     this.updateLoading({ stage: "Connected", substage: "Terminal ready!", progress: 100 });
     setTimeout(() => {
-      var _a;
+      var _a, _b, _c, _d, _e, _f, _g;
+      console.log("[TerminalPanel] Hiding loading, showing terminal");
       this.hideLoading();
-      (_a = this.terminal) == null ? void 0 : _a.focus();
+      if (this.terminalEl) {
+        this.terminalEl.style.display = "block";
+        this.terminalEl.style.visibility = "visible";
+        this.terminalEl.style.opacity = "1";
+        this.terminalEl.style.height = "100%";
+        this.terminalEl.style.minHeight = "200px";
+      }
+      this.container.style.display = "flex";
+      this.container.style.height = "100%";
+      this.container.style.minHeight = "200px";
+      console.log(
+        "[TerminalPanel] Container:",
+        this.container.className,
+        "offsetHeight:",
+        this.container.offsetHeight,
+        "parent:",
+        (_a = this.container.parentElement) == null ? void 0 : _a.className
+      );
+      console.log(
+        "[TerminalPanel] TerminalEl:",
+        (_b = this.terminalEl) == null ? void 0 : _b.className,
+        "offsetHeight:",
+        (_c = this.terminalEl) == null ? void 0 : _c.offsetHeight
+      );
+      (_d = this.fitAddon) == null ? void 0 : _d.fit();
+      (_e = this.terminal) == null ? void 0 : _e.focus();
+      console.log("[TerminalPanel] Terminal cols:", (_f = this.terminal) == null ? void 0 : _f.cols, "rows:", (_g = this.terminal) == null ? void 0 : _g.rows);
     }, TIMING.LOADING_COMPLETE_DELAY_MS);
     if (this.settings.autoStartClaude) {
       setTimeout(() => {
@@ -12083,6 +12153,7 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
    * Create a new terminal instance
    */
   async createNewTerminal(project = null) {
+    var _a;
     if (!project) {
       project = this.plugin.projectManager.createProjectFromPath(
         this.plugin.getVaultPath()
@@ -12108,13 +12179,18 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
       // Pass vault path for proper boundary checking
     );
     this.panels.set(instance.id, panel);
+    console.log("[TerminalView] Panel added to map, instance.id:", instance.id);
+    console.log("[TerminalView] panels.size:", this.panels.size);
+    const activePane = this.splitLayoutManager.getActivePane();
+    console.log("[TerminalView] Active pane:", activePane);
+    this.splitLayoutManager.setPaneInstanceId(activePane, instance.id);
+    console.log("[TerminalView] Set pane instance id, calling renderSplitLayout");
+    this.renderSplitLayout();
+    console.log("[TerminalView] After render - container parent:", (_a = panel.getContainer().parentElement) == null ? void 0 : _a.className);
     await panel.initialize(project);
     if (project) {
       this.plugin.projectManager.addToRecent(project);
     }
-    const activePane = this.splitLayoutManager.getActivePane();
-    this.splitLayoutManager.setPaneInstanceId(activePane, instance.id);
-    this.renderSplitLayout();
     this.switchToInstance(instance.id);
     return instance.id;
   }
@@ -12323,20 +12399,26 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
   renderSplitLayout() {
     if (!this.splitRenderer)
       return;
+    console.log("[TerminalView] renderSplitLayout called");
     const layout = this.splitLayoutManager.getLayout();
     this.splitRenderer.render(layout);
     const paneIds = this.splitLayoutManager.getAllPaneIds();
+    console.log("[TerminalView] PaneIds:", paneIds);
     for (const paneId of paneIds) {
       const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
+      console.log("[TerminalView] Pane", paneId, "instanceId:", instanceId);
       if (instanceId) {
         const panel = this.panels.get(instanceId);
         const paneEl = this.splitRenderer.getPaneElement(paneId);
+        console.log("[TerminalView] Panel exists:", !!panel, "paneEl exists:", !!paneEl);
         if (panel && paneEl) {
           const panelContainer = paneEl.querySelector(".terminal-panel-wrapper");
           if (!panelContainer) {
+            console.log("[TerminalView] Appending panel container to pane");
             paneEl.appendChild(panel.getContainer());
           }
           panel.show();
+          console.log("[TerminalView] Panel show() called, paneEl.innerHTML length:", paneEl.innerHTML.length);
         }
       }
     }
@@ -12481,9 +12563,9 @@ var ClaudeCodeSettingTab = class extends import_obsidian7.PluginSettingTab {
 };
 
 // src/services/ProjectManager.ts
-var fs2 = __toESM(require("fs"));
+var fs3 = __toESM(require("fs"));
 var path4 = __toESM(require("path"));
-var fsPromises = fs2.promises;
+var fsPromises = fs3.promises;
 var ProjectManager = class {
   constructor(settings, saveSettings) {
     this.cachedProjects = [];

@@ -186,19 +186,26 @@ export class ClaudeTerminalView extends ItemView {
         );
 
         this.panels.set(instance.id, panel);
+        console.log('[TerminalView] Panel added to map, instance.id:', instance.id);
+        console.log('[TerminalView] panels.size:', this.panels.size);
 
-        // Initialize panel
+        // Update split layout FIRST to mount container to DOM
+        const activePane = this.splitLayoutManager.getActivePane();
+        console.log('[TerminalView] Active pane:', activePane);
+        this.splitLayoutManager.setPaneInstanceId(activePane, instance.id);
+        console.log('[TerminalView] Set pane instance id, calling renderSplitLayout');
+        this.renderSplitLayout();
+
+        // Verify container is now in DOM
+        console.log('[TerminalView] After render - container parent:', panel.getContainer().parentElement?.className);
+
+        // NOW initialize panel (xterm needs to be in DOM to render)
         await panel.initialize(project);
 
         // Track in recent projects
         if (project) {
             this.plugin.projectManager.addToRecent(project);
         }
-
-        // Update split layout with new instance
-        const activePane = this.splitLayoutManager.getActivePane();
-        this.splitLayoutManager.setPaneInstanceId(activePane, instance.id);
-        this.renderSplitLayout();
 
         // Switch to this instance
         this.switchToInstance(instance.id);
@@ -452,22 +459,32 @@ export class ClaudeTerminalView extends ItemView {
     private renderSplitLayout(): void {
         if (!this.splitRenderer) return;
 
+        console.log('[TerminalView] renderSplitLayout called');
+
         const layout = this.splitLayoutManager.getLayout();
         this.splitRenderer.render(layout);
 
         // Mount panels into panes
         const paneIds = this.splitLayoutManager.getAllPaneIds();
+        console.log('[TerminalView] PaneIds:', paneIds);
+
         for (const paneId of paneIds) {
             const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
+            console.log('[TerminalView] Pane', paneId, 'instanceId:', instanceId);
+
             if (instanceId) {
                 const panel = this.panels.get(instanceId);
                 const paneEl = this.splitRenderer.getPaneElement(paneId);
+                console.log('[TerminalView] Panel exists:', !!panel, 'paneEl exists:', !!paneEl);
+
                 if (panel && paneEl) {
                     const panelContainer = paneEl.querySelector('.terminal-panel-wrapper') as HTMLElement;
                     if (!panelContainer) {
+                        console.log('[TerminalView] Appending panel container to pane');
                         paneEl.appendChild(panel.getContainer());
                     }
                     panel.show();
+                    console.log('[TerminalView] Panel show() called, paneEl.innerHTML length:', paneEl.innerHTML.length);
                 }
             }
         }

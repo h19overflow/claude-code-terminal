@@ -2,10 +2,61 @@
  * PtyBridge - Abstraction layer for PTY host communication
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
 import type { PtyMessage, PtySpawnOptions, ConnectionStatus, StatusChangeCallback, DataCallback } from '../types';
 import { TIMING } from '../constants';
+
+/**
+ * Find the system Node.js executable path
+ * Electron's process.execPath points to Electron, not Node
+ */
+function findNodeExecutable(): string {
+    // Common Windows Node.js installation paths
+    const windowsPaths = [
+        'C:\\Program Files\\nodejs\\node.exe',
+        'C:\\Program Files (x86)\\nodejs\\node.exe',
+        process.env.APPDATA ? path.join(process.env.APPDATA, '..', 'Local', 'Programs', 'nodejs', 'node.exe') : '',
+        process.env.PROGRAMFILES ? path.join(process.env.PROGRAMFILES, 'nodejs', 'node.exe') : ''
+    ].filter(Boolean);
+
+    // Check common paths first (faster)
+    for (const nodePath of windowsPaths) {
+        if (fs.existsSync(nodePath)) {
+            return nodePath;
+        }
+    }
+
+    // Fallback: try 'where node' command on Windows
+    if (process.platform === 'win32') {
+        try {
+            const result = execSync('where node', { encoding: 'utf8', windowsHide: true });
+            const nodePath = result.split('\n')[0].trim();
+            if (nodePath && fs.existsSync(nodePath)) {
+                return nodePath;
+            }
+        } catch {
+            // where command failed, continue to fallback
+        }
+    }
+
+    // Unix fallback
+    if (process.platform !== 'win32') {
+        try {
+            const result = execSync('which node', { encoding: 'utf8' });
+            const nodePath = result.trim();
+            if (nodePath && fs.existsSync(nodePath)) {
+                return nodePath;
+            }
+        } catch {
+            // which command failed
+        }
+    }
+
+    // Last resort: hope 'node' is in PATH
+    return 'node';
+}
 
 export class PtyBridge {
     private ptyHost: ChildProcess | null = null;
@@ -72,19 +123,26 @@ export class PtyBridge {
         }
 
         const ptyHostPath = path.join(this.pluginPath, 'pty-host.js');
+        const nodeExe = findNodeExecutable();
         this.setStatus('connecting');
 
+        console.log('[PtyBridge] Using Node.js:', nodeExe);
+        console.log('[PtyBridge] PTY host path:', ptyHostPath);
+
         try {
-            this.ptyHost = spawn('node', [ptyHostPath], {
+            this.ptyHost = spawn(nodeExe, [ptyHostPath], {
                 cwd: this.pluginPath,
                 env: { ...process.env },
-                stdio: ['pipe', 'pipe', 'pipe']
+                stdio: ['pipe', 'pipe', 'pipe'],
+                // Windows-specific: hide the console window
+                windowsHide: true
             });
 
             this.setupEventHandlers();
             return true;
         } catch (error: any) {
             console.error('[PtyBridge] Failed to start PTY host:', error);
+            console.error('[PtyBridge] Node path was:', nodeExe);
             this.setStatus('error');
             this.onError?.(error.message);
             return false;

@@ -377,11 +377,34 @@ export class TerminalPanel {
      * Handle shell spawned
      */
     private handleSpawned(pid: number): void {
+        console.log('[TerminalPanel] handleSpawned called, PID:', pid);
         this.updateLoading({ stage: 'Connected', substage: 'Terminal ready!', progress: 100 });
 
         setTimeout(() => {
+            console.log('[TerminalPanel] Hiding loading, showing terminal');
             this.hideLoading();
+            // Force terminal visible
+            if (this.terminalEl) {
+                this.terminalEl.style.display = 'block';
+                this.terminalEl.style.visibility = 'visible';
+                this.terminalEl.style.opacity = '1';
+                this.terminalEl.style.height = '100%';
+                this.terminalEl.style.minHeight = '200px';
+            }
+            this.container.style.display = 'flex';
+            this.container.style.height = '100%';
+            this.container.style.minHeight = '200px';
+
+            // Debug DOM
+            console.log('[TerminalPanel] Container:', this.container.className,
+                'offsetHeight:', this.container.offsetHeight,
+                'parent:', this.container.parentElement?.className);
+            console.log('[TerminalPanel] TerminalEl:', this.terminalEl?.className,
+                'offsetHeight:', this.terminalEl?.offsetHeight);
+
+            this.fitAddon?.fit();
             this.terminal?.focus();
+            console.log('[TerminalPanel] Terminal cols:', this.terminal?.cols, 'rows:', this.terminal?.rows);
         }, TIMING.LOADING_COMPLETE_DELAY_MS);
 
         // Auto-start Claude if enabled

@@ -39,11 +39,11 @@ export class SplitLayoutManager {
         this.onChange = onChange;
 
         // Initialize with single pane
+        const rootPane = this.createPaneNode(null, null);
         this.layout = {
-            root: this.createPaneNode(null, null),
-            activePane: this.nextId.toString()
+            root: rootPane,
+            activePane: rootPane.id  // Use the actual pane ID
         };
-        this.nextId++;
     }
 
     /**
@@ -295,11 +295,11 @@ export class SplitLayoutManager {
      */
     reset(): void {
         this.nextId = 1;
+        const rootPane = this.createPaneNode(null, null);
         this.layout = {
-            root: this.createPaneNode(null, null),
-            activePane: this.nextId.toString()
+            root: rootPane,
+            activePane: rootPane.id
         };
-        this.nextId++;
         this.notifyChange();
     }
 

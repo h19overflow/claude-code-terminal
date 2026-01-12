@@ -1,7 +1,15 @@
 // This script runs in a separate Node.js process to handle PTY
 // It communicates with the main Obsidian process via stdin/stdout JSON messages
 
-const pty = require('@lydell/node-pty');
+// Try original node-pty first, fallback to @lydell/node-pty
+let pty;
+try {
+    pty = require('node-pty');
+    console.error('[pty-host] Using node-pty');
+} catch (e) {
+    pty = require('@lydell/node-pty');
+    console.error('[pty-host] Using @lydell/node-pty');
+}
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -75,6 +83,20 @@ function isValidDirectory(dirPath) {
         return stats.isDirectory();
     } catch {
         return false;
+    }
+}
+
+/**
+ * Get the real path with correct case (Windows fix)
+ * node-pty can fail if path case doesn't match filesystem
+ */
+function getRealPath(inputPath) {
+    try {
+        // fs.realpathSync resolves symlinks and normalizes case on Windows
+        return fs.realpathSync(inputPath);
+    } catch {
+        // If realpathSync fails, return original
+        return inputPath;
     }
 }
 
@@ -211,22 +233,68 @@ function spawnPty(options) {
     }
 
     try {
-        ptyProcess = pty.spawn(options.shell, options.args || [], {
-            name: 'xterm-256color',
-            cols: options.cols || 80,
-            rows: options.rows || 24,
-            cwd: options.cwd,
-            env: sanitizeEnv(process.env),
-            useConpty: false
-        });
+        // Resolve the real path with correct case (Windows fix for node-pty)
+        const resolvedCwd = getRealPath(options.cwd);
 
-        send('spawned', { pid: ptyProcess.pid, cwd: options.cwd, shell: options.shell });
+        // Debug logging
+        console.error('[pty-host] Spawning shell:', options.shell);
+        console.error('[pty-host] Input CWD:', options.cwd);
+        console.error('[pty-host] Resolved CWD:', resolvedCwd);
+        console.error('[pty-host] CWD exists:', fs.existsSync(resolvedCwd));
+        console.error('[pty-host] Cols:', options.cols, 'Rows:', options.rows);
 
+        // Use ConPTY on modern Windows (winpty has path resolution issues in Electron)
+        const useConpty = true;
+        console.error('[pty-host] Using ConPTY:', useConpty);
+        console.error('[pty-host] PATH:', process.env.PATH ? process.env.PATH.substring(0, 200) : 'undefined');
+        console.error('[pty-host] Shell exists:', fs.existsSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'));
+
+        // Use full path to shell
+        const shellPath = options.shell === 'powershell.exe'
+            ? 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+            : options.shell;
+        console.error('[pty-host] Full shell path:', shellPath);
+
+        let spawnedProcess;
+        try {
+            console.error('[pty-host] Calling pty.spawn NOW...');
+            spawnedProcess = pty.spawn(shellPath, options.args || [], {
+                name: 'xterm-256color',
+                cols: options.cols || 80,
+                rows: options.rows || 24,
+                cwd: resolvedCwd,
+                env: sanitizeEnv(process.env),
+                useConpty: useConpty
+            });
+            console.error('[pty-host] pty.spawn returned');
+        } catch (spawnError) {
+            console.error('[pty-host] pty.spawn() threw:', spawnError.message);
+            console.error('[pty-host] Stack:', spawnError.stack);
+            send('error', { message: spawnError.message, code: 'SPAWN_EXCEPTION' });
+            return;
+        }
+
+        if (!spawnedProcess || !spawnedProcess.pid) {
+            console.error('[pty-host] pty.spawn() returned invalid process');
+            send('error', { message: 'Invalid PTY process returned', code: 'INVALID_PTY' });
+            return;
+        }
+
+        ptyProcess = spawnedProcess;
+        console.error('[pty-host] Shell spawned successfully, PID:', ptyProcess.pid);
+        send('spawned', { pid: ptyProcess.pid, cwd: resolvedCwd, shell: options.shell, conpty: useConpty });
+
+        let dataCount = 0;
         ptyProcess.onData((data) => {
+            dataCount++;
+            if (dataCount <= 5) {
+                console.error('[pty-host] Data received #' + dataCount + ', length:', data.length);
+            }
             send('data', data);
         });
 
         ptyProcess.onExit(({ exitCode }) => {
+            console.error('[pty-host] Shell exited with code:', exitCode);
             send('exit', { exitCode });
             ptyProcess = null;
         });
@@ -236,18 +304,38 @@ function spawnPty(options) {
     }
 }
 
+// Global error handlers
+process.on('uncaughtException', (err) => {
+    console.error('[pty-host] Uncaught exception:', err.message);
+    console.error('[pty-host] Stack:', err.stack);
+    send('error', { message: 'Uncaught: ' + err.message, code: 'UNCAUGHT_EXCEPTION' });
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('[pty-host] Unhandled rejection:', reason);
+    send('error', { message: 'Unhandled rejection: ' + reason, code: 'UNHANDLED_REJECTION' });
+});
+
 // Keep process alive
 process.stdin.resume();
 
 // Handle cleanup
 process.on('SIGTERM', () => {
+    console.error('[pty-host] Received SIGTERM');
     if (ptyProcess) ptyProcess.kill();
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
+    console.error('[pty-host] Received SIGINT');
     if (ptyProcess) ptyProcess.kill();
     process.exit(0);
 });
 
+process.on('exit', (code) => {
+    console.error('[pty-host] Process exiting with code:', code);
+});
+
+console.error('[pty-host] Starting pty-host.js...');
 send('ready', {});
+console.error('[pty-host] Ready signal sent');
