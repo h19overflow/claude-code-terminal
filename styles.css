@@ -1,0 +1,1277 @@
+/* ============================================
+   Claude Code Terminal - Obsidian Native Theme
+   ============================================ */
+
+/* CSS Custom Properties - Obsidian Integration */
+.claude-terminal-container {
+    --terminal-bg: var(--background-primary);
+    --terminal-fg: var(--text-normal);
+    --terminal-header-bg: var(--background-secondary);
+    --terminal-border: var(--background-modifier-border);
+    --terminal-accent: var(--interactive-accent);
+    --terminal-muted: var(--text-muted);
+    --terminal-faint: var(--text-faint);
+    --terminal-error: var(--text-error);
+    --terminal-success: var(--color-green);
+    --terminal-warning: var(--color-yellow);
+
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--terminal-bg);
+    contain: layout style;
+}
+
+/* ============================================
+   Header Section
+   ============================================ */
+.claude-terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background-color: var(--terminal-header-bg);
+    border-bottom: 1px solid var(--terminal-border);
+    flex-shrink: 0;
+    min-height: 36px;
+}
+
+.claude-terminal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--terminal-fg);
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.claude-terminal-icon {
+    display: flex;
+    align-items: center;
+    color: var(--terminal-accent);
+}
+
+.claude-terminal-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Status Badge */
+.claude-terminal-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    background-color: var(--background-modifier-hover);
+    transition: all 0.2s ease;
+}
+
+.claude-terminal-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.claude-terminal-status[data-status="connecting"] .claude-terminal-status-dot {
+    background-color: var(--color-yellow);
+    animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+.claude-terminal-status[data-status="connected"] .claude-terminal-status-dot {
+    background-color: var(--color-green);
+}
+
+.claude-terminal-status[data-status="error"] .claude-terminal-status-dot {
+    background-color: var(--text-error);
+}
+
+.claude-terminal-status[data-status="disconnected"] .claude-terminal-status-dot {
+    background-color: var(--terminal-muted);
+}
+
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* Header Actions */
+.claude-terminal-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.claude-terminal-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--terminal-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.claude-terminal-actions button:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--terminal-fg);
+}
+
+.claude-terminal-actions button:active {
+    transform: scale(0.95);
+}
+
+.claude-terminal-actions button svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ============================================
+   Loading State
+   ============================================ */
+.claude-terminal-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    padding: 24px;
+    animation: fade-in 0.3s ease;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Spinner */
+.claude-terminal-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--background-modifier-border);
+    border-top-color: var(--terminal-accent);
+    border-radius: 50%;
+    animation: spinner-rotate 1s linear infinite;
+}
+
+@keyframes spinner-rotate {
+    to { transform: rotate(360deg); }
+}
+
+/* Progress Bar */
+.claude-terminal-progress {
+    width: 200px;
+    height: 4px;
+    background-color: var(--background-modifier-border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.claude-terminal-progress-bar {
+    height: 100%;
+    background-color: var(--terminal-accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+/* Loading Status Text */
+.claude-terminal-loading-text {
+    color: var(--terminal-muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.claude-terminal-loading-stage {
+    color: var(--terminal-fg);
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.claude-terminal-loading-substage {
+    color: var(--terminal-faint);
+    font-size: 11px;
+}
+
+/* ============================================
+   Terminal Wrapper
+   ============================================ */
+.claude-terminal-wrapper {
+    flex: 1;
+    padding: 8px;
+    overflow: hidden;
+    contain: strict;
+    position: relative;
+}
+
+.claude-terminal-wrapper .xterm {
+    height: 100%;
+    transition: opacity 0.15s ease;
+}
+
+.claude-terminal-wrapper.resizing .xterm {
+    opacity: 0.9;
+}
+
+/* Viewport Scrollbar - Obsidian Native */
+.claude-terminal-wrapper .xterm-viewport {
+    overflow-y: auto !important;
+}
+
+.claude-terminal-wrapper .xterm-viewport::-webkit-scrollbar {
+    width: 8px;
+}
+
+.claude-terminal-wrapper .xterm-viewport::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.claude-terminal-wrapper .xterm-viewport::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-bg);
+    border-radius: 4px;
+}
+
+.claude-terminal-wrapper .xterm-viewport::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-active-thumb-bg);
+}
+
+/* ============================================
+   Error State
+   ============================================ */
+.claude-terminal-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    color: var(--terminal-error);
+    padding: 24px;
+    animation: fade-in 0.3s ease;
+}
+
+.claude-terminal-error svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    color: var(--terminal-error);
+}
+
+.claude-terminal-error p {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    max-width: 280px;
+    line-height: 1.5;
+    color: var(--terminal-muted);
+}
+
+.claude-terminal-error .error-title {
+    color: var(--terminal-error);
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.claude-terminal-error button {
+    margin-top: 8px;
+}
+
+/* ============================================
+   xterm.js Base Styles
+   ============================================ */
+.xterm {
+    font-feature-settings: "liga" 0;
+    position: relative;
+    user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
+}
+
+.xterm.focus,
+.xterm:focus {
+    outline: none;
+}
+
+.xterm .xterm-helpers {
+    position: absolute;
+    top: 0;
+    z-index: 5;
+}
+
+.xterm .xterm-helper-textarea {
+    padding: 0;
+    border: 0;
+    margin: 0;
+    position: absolute;
+    opacity: 0;
+    left: -9999em;
+    top: 0;
+    width: 0;
+    height: 0;
+    z-index: -5;
+    white-space: nowrap;
+    overflow: hidden;
+    resize: none;
+}
+
+.xterm .composition-view {
+    background: var(--terminal-bg);
+    color: var(--terminal-fg);
+    display: none;
+    position: absolute;
+    white-space: nowrap;
+    z-index: 1;
+}
+
+.xterm .composition-view.active {
+    display: block;
+}
+
+.xterm .xterm-viewport {
+    background-color: var(--terminal-bg);
+    overflow-y: scroll;
+    cursor: default;
+    position: absolute;
+    right: 0;
+    left: 0;
+    top: 0;
+    bottom: 0;
+}
+
+.xterm .xterm-screen {
+    position: relative;
+}
+
+.xterm .xterm-screen canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.xterm .xterm-scroll-area {
+    visibility: hidden;
+}
+
+.xterm-char-measure-element {
+    display: inline-block;
+    visibility: hidden;
+    position: absolute;
+    top: 0;
+    left: -9999em;
+    line-height: normal;
+}
+
+.xterm.enable-mouse-events {
+    cursor: default;
+}
+
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
+    cursor: pointer;
+}
+
+.xterm.column-select.focus {
+    cursor: crosshair;
+}
+
+.xterm .xterm-accessibility:not(.debug),
+.xterm .xterm-message {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 10;
+    color: transparent;
+    pointer-events: none;
+}
+
+.xterm .xterm-accessibility-tree:not(.debug) *::selection {
+    color: transparent;
+}
+
+.xterm .xterm-accessibility-tree {
+    user-select: text;
+    white-space: pre;
+}
+
+.xterm .live-region {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.xterm-dim {
+    opacity: 1 !important;
+}
+
+.xterm-underline-1 { text-decoration: underline; }
+.xterm-underline-2 { text-decoration: double underline; }
+.xterm-underline-3 { text-decoration: wavy underline; }
+.xterm-underline-4 { text-decoration: dotted underline; }
+.xterm-underline-5 { text-decoration: dashed underline; }
+
+.xterm-overline { text-decoration: overline; }
+.xterm-overline.xterm-underline-1 { text-decoration: overline underline; }
+.xterm-overline.xterm-underline-2 { text-decoration: overline double underline; }
+.xterm-overline.xterm-underline-3 { text-decoration: overline wavy underline; }
+.xterm-overline.xterm-underline-4 { text-decoration: overline dotted underline; }
+.xterm-overline.xterm-underline-5 { text-decoration: overline dashed underline; }
+
+.xterm-strikethrough { text-decoration: line-through; }
+
+.xterm-screen .xterm-decoration-container .xterm-decoration {
+    z-index: 6;
+    position: absolute;
+}
+
+.xterm-screen .xterm-decoration-container .xterm-decoration.xterm-decoration-top-layer {
+    z-index: 7;
+}
+
+.xterm-decoration-overview-ruler {
+    z-index: 8;
+    position: absolute;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+}
+
+.xterm-decoration-top {
+    z-index: 2;
+    position: relative;
+}
+
+/* ============================================
+   Header Layout - Three Sections
+   ============================================ */
+.claude-terminal-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.claude-terminal-header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 0 12px;
+    min-width: 0;
+}
+
+/* ============================================
+   Inline Project Picker
+   ============================================ */
+.inline-project-picker {
+    position: relative;
+    max-width: 250px;
+    width: 100%;
+}
+
+.project-picker-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-s);
+    background-color: var(--background-modifier-hover);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    overflow: hidden;
+}
+
+.project-picker-display:hover {
+    background-color: var(--background-modifier-active-hover);
+}
+
+.project-picker-icon {
+    display: flex;
+    align-items: center;
+    color: var(--terminal-accent);
+    flex-shrink: 0;
+}
+
+.project-picker-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.project-picker-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.project-picker-chevron {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.project-picker-chevron svg {
+    width: 12px;
+    height: 12px;
+}
+
+.inline-project-picker.expanded .project-picker-chevron {
+    transform: rotate(180deg);
+}
+
+/* Project Picker Dropdown */
+.project-picker-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-s);
+    z-index: 100;
+    overflow: hidden;
+    animation: dropdown-open 0.15s ease;
+}
+
+@keyframes dropdown-open {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.project-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.project-picker-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.project-picker-item-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+}
+
+.project-picker-item-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.project-picker-item-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-normal);
+}
+
+.project-picker-item-check {
+    display: flex;
+    align-items: center;
+    color: var(--color-green);
+}
+
+.project-picker-item-check svg {
+    width: 14px;
+    height: 14px;
+}
+
+.project-picker-browse {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--background-modifier-border);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: all 0.1s ease;
+}
+
+.project-picker-browse:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.project-picker-browse svg {
+    width: 12px;
+    height: 12px;
+}
+
+.project-picker-empty {
+    padding: 12px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 12px;
+}
+
+/* ============================================
+   Project Switcher Modal
+   ============================================ */
+.claude-project-switcher {
+    padding: 0 !important;
+    max-width: 500px !important;
+    width: 90vw !important;
+}
+
+.claude-project-switcher .modal-content {
+    padding: 0;
+}
+
+.project-switcher-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.project-switcher-icon {
+    display: flex;
+    align-items: center;
+    color: var(--interactive-accent);
+}
+
+.project-switcher-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.project-switcher-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.project-switcher-search {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.project-switcher-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.project-switcher-input:focus {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}
+
+.project-switcher-input::placeholder {
+    color: var(--text-faint);
+}
+
+.project-switcher-results {
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.project-switcher-section-header {
+    padding: 8px 16px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.project-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background-color 0.1s ease;
+    user-select: none;
+}
+
+.project-item:hover,
+.project-item.selected {
+    background-color: var(--background-modifier-hover);
+}
+
+.project-item.selected {
+    background-color: var(--background-modifier-active-hover);
+}
+
+.project-item.current {
+    border-left: 2px solid var(--interactive-accent);
+}
+
+.project-item-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-s);
+    background-color: var(--background-modifier-hover);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.project-item-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.project-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.project-item-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.project-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.project-item-badge {
+    padding: 2px 6px;
+    border-radius: 10px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.project-item-path {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.project-item-meta {
+    font-size: 11px;
+    color: var(--text-faint);
+    flex-shrink: 0;
+}
+
+.project-switcher-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-faint);
+}
+
+.project-switcher-hints {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
+}
+
+.project-switcher-hints span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.project-switcher-hints kbd {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: var(--background-modifier-hover);
+    font-family: inherit;
+    font-size: 10px;
+}
+
+/* ============================================
+   Settings Page Styles
+   ============================================ */
+.project-sources-list {
+    margin-bottom: 16px;
+}
+
+.project-source-item {
+    margin-bottom: 8px;
+    padding: 12px;
+    border-radius: var(--radius-m);
+    background-color: var(--background-secondary);
+}
+
+.project-source-item .setting-item {
+    border-top: none;
+    padding-top: 0;
+}
+
+.project-source-depth-label {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-faint);
+}
+
+/* ============================================
+   Multi-Terminal Header
+   ============================================ */
+.claude-terminal-header-multi {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
+    min-height: 40px;
+}
+
+.claude-terminal-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: var(--interactive-accent);
+    flex-shrink: 0;
+}
+
+.claude-terminal-logo svg {
+    width: 20px;
+    height: 20px;
+}
+
+.claude-terminal-tabs-wrapper {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* ============================================
+   Terminal Tabs
+   ============================================ */
+.terminal-tabs-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 32px;
+}
+
+.terminal-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 2px 0;
+}
+
+.terminal-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: var(--radius-s);
+    background-color: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    max-width: 180px;
+    min-width: 80px;
+}
+
+.terminal-tab:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.terminal-tab.active {
+    background-color: var(--background-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.terminal-tab-status {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background-color 0.3s ease;
+}
+
+.terminal-tab-status[data-status="disconnected"] {
+    background-color: var(--text-faint);
+}
+
+.terminal-tab-status[data-status="connecting"] {
+    background-color: var(--color-yellow);
+    animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+.terminal-tab-status[data-status="connected"] {
+    background-color: var(--color-green);
+}
+
+.terminal-tab-status[data-status="error"] {
+    background-color: var(--text-error);
+}
+
+.terminal-tab-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.terminal-tab-icon svg {
+    width: 12px;
+    height: 12px;
+}
+
+.terminal-tab.active .terminal-tab-icon {
+    color: var(--text-normal);
+}
+
+.terminal-tab-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.terminal-tab.active .terminal-tab-name {
+    color: var(--text-normal);
+    font-weight: 500;
+}
+
+.terminal-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--radius-s);
+    color: var(--text-faint);
+    opacity: 0;
+    transition: all 0.1s ease;
+    flex-shrink: 0;
+}
+
+.terminal-tab:hover .terminal-tab-close,
+.terminal-tab.active .terminal-tab-close {
+    opacity: 1;
+}
+
+.terminal-tab-close:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-error);
+}
+
+.terminal-tab-close svg {
+    width: 12px;
+    height: 12px;
+}
+
+.terminal-tab-new {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-s);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.terminal-tab-new:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.terminal-tab-new svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ============================================
+   Action Bar - Obsidian Integration
+   ============================================ */
+.claude-action-bar-wrapper {
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--terminal-border);
+    background-color: var(--background-secondary-alt);
+}
+
+.claude-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    gap: 4px;
+}
+
+.action-bar-section {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.action-bar-left {
+    flex: 1;
+}
+
+.action-bar-right {
+    flex-shrink: 0;
+}
+
+.action-bar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background-color: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.action-bar-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.action-bar-btn:active {
+    background-color: var(--background-modifier-active-hover);
+}
+
+.action-bar-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.action-bar-divider {
+    width: 1px;
+    height: 20px;
+    margin: 0 6px;
+    background-color: var(--background-modifier-border);
+}
+
+/* Tooltip styling for action buttons */
+.action-bar-btn[title] {
+    position: relative;
+}
+
+/* ============================================
+   Terminal Panels Container
+   ============================================ */
+.claude-terminal-panels {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.terminal-panel-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+}
+
+.terminal-panel-wrapper[style*="display: flex"],
+.terminal-panel-wrapper:not([style*="display: none"]) {
+    display: flex;
+}
+
+.terminal-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+.terminal-panel-content {
+    flex: 1;
+    padding: 8px;
+    overflow: hidden;
+}
+
+.terminal-panel-content .xterm {
+    height: 100%;
+}
+
+/* ============================================
+   Terminal Search Bar
+   ============================================ */
+.terminal-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    animation: slide-down 0.15s ease;
+}
+
+@keyframes slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.terminal-search-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 13px;
+    outline: none;
+    min-width: 150px;
+}
+
+.terminal-search-input:focus {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}
+
+.terminal-search-input::placeholder {
+    color: var(--text-faint);
+}
+
+.terminal-search-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.terminal-search-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-s);
+    background-color: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.1s ease;
+}
+
+.terminal-search-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.terminal-search-btn:active {
+    background-color: var(--background-modifier-active-hover);
+}
+
+.terminal-search-close:hover {
+    color: var(--text-error);
+}
+
+/* xterm.js search decorations */
+.xterm .xterm-find-result-decoration {
+    background-color: rgba(255, 255, 0, 0.3);
+    outline: 1px solid rgba(255, 255, 0, 0.5);
+}
+
+.xterm .xterm-find-active-result-decoration {
+    background-color: rgba(255, 200, 0, 0.5);
+    outline: 2px solid var(--interactive-accent);
+}
+
+/* ============================================
+   Project Switcher Loading Indicator
+   ============================================ */
+.project-switcher-loading {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+    animation: pulse-opacity 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-opacity {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* Virtual scroll container */
+.project-switcher-scroll {
+    overflow: auto;
+}
+
+.project-switcher-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.project-switcher-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.project-switcher-scroll::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-bg);
+    border-radius: 4px;
+}
+
+.project-switcher-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-active-thumb-bg);
+}

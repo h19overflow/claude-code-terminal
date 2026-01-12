@@ -1,0 +1,9 @@
+{
+  "id": "claude-code-terminal",
+  "name": "Claude Code Terminal",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Embedded PowerShell terminal for Claude Code in Obsidian sidebar",
+  "author": "User",
+  "isDesktopOnly": true
+}

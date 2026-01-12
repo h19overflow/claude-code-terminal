@@ -1,0 +1,51 @@
+{
+  "shell": "powershell.exe",
+  "claudeCommand": "claude --dangerously-skip-permissions",
+  "autoStartClaude": true,
+  "fontSize": 14,
+  "fontFamily": "Consolas, Monaco, \"Courier New\", monospace",
+  "projectSources": [
+    {
+      "type": "directory",
+      "path": "C:\\Users\\User\\OS",
+      "depth": 2,
+      "enabled": true
+    },
+    {
+      "type": "directory",
+      "path": "C:\\Users\\User\\Projects",
+      "depth": 2,
+      "enabled": true
+    }
+  ],
+  "recentProjects": [
+    {
+      "name": "Langchain_Workshop",
+      "path": "C:\\Users\\User\\Projects\\Langchain_Workshop",
+      "lastOpened": 1768181179425,
+      "icon": "git-branch"
+    },
+    {
+      "name": "Aspexa_Automa",
+      "path": "C:\\Users\\User\\Projects\\Aspexa_Automa",
+      "lastOpened": 1768149685239,
+      "icon": "file-code-2"
+    },
+    {
+      "name": "Agentic Auditing",
+      "path": "C:\\Users\\User\\Projects\\Old\\Agentic Auditing",
+      "lastOpened": 1768149354390,
+      "icon": "file-code-2"
+    },
+    {
+      "name": "OS",
+      "path": "C:\\Users\\User\\OS",
+      "icon": "git-branch",
+      "lastOpened": 1768181169251
+    }
+  ],
+  "maxRecentProjects": 10,
+  "showProjectInHeader": true,
+  "showLoadingAnimation": true,
+  "showStatusBadge": true
+}
