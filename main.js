@@ -10119,6 +10119,434 @@ ${selection.text}
   }
 };
 
+// src/services/SplitLayoutManager.ts
+var SplitLayoutManager = class {
+  constructor(onChange) {
+    this.nextId = 1;
+    this.onChange = onChange;
+    this.layout = {
+      root: this.createPaneNode(null, null),
+      activePane: this.nextId.toString()
+    };
+    this.nextId++;
+  }
+  /**
+   * Create a pane node
+   */
+  createPaneNode(parent, instanceId) {
+    return {
+      id: (this.nextId++).toString(),
+      type: "pane",
+      parent,
+      instanceId: instanceId || void 0
+    };
+  }
+  /**
+   * Create a split node
+   */
+  createSplitNode(parent, direction, children) {
+    const node = {
+      id: (this.nextId++).toString(),
+      type: "split",
+      parent,
+      direction,
+      children,
+      sizes: [50, 50]
+    };
+    children[0].parent = node;
+    children[1].parent = node;
+    return node;
+  }
+  /**
+   * Find a pane node by ID
+   */
+  findNode(nodeId, root = this.layout.root) {
+    if (root.id === nodeId) {
+      return root;
+    }
+    if (root.type === "split" && root.children) {
+      return this.findNode(nodeId, root.children[0]) || this.findNode(nodeId, root.children[1]);
+    }
+    return null;
+  }
+  /**
+   * Split a pane in the given direction
+   */
+  splitPane(paneId, direction, newInstanceId) {
+    const node = this.findNode(paneId);
+    if (!node || node.type !== "pane") {
+      return null;
+    }
+    const parent = node.parent;
+    const newPane = this.createPaneNode(null, newInstanceId);
+    const splitNode = this.createSplitNode(parent, direction, [node, newPane]);
+    if (parent && parent.type === "split" && parent.children) {
+      if (parent.children[0].id === node.id) {
+        parent.children[0] = splitNode;
+      } else {
+        parent.children[1] = splitNode;
+      }
+    } else {
+      this.layout.root = splitNode;
+    }
+    this.layout.activePane = newPane.id;
+    this.notifyChange();
+    return newPane.id;
+  }
+  /**
+   * Close a pane
+   */
+  closePane(paneId) {
+    const node = this.findNode(paneId);
+    if (!node || node.type !== "pane") {
+      return;
+    }
+    const parent = node.parent;
+    if (!parent) {
+      return;
+    }
+    if (parent.type === "split" && parent.children) {
+      const sibling = parent.children[0].id === node.id ? parent.children[1] : parent.children[0];
+      const grandparent = parent.parent;
+      if (grandparent && grandparent.type === "split" && grandparent.children) {
+        if (grandparent.children[0].id === parent.id) {
+          grandparent.children[0] = sibling;
+        } else {
+          grandparent.children[1] = sibling;
+        }
+        sibling.parent = grandparent;
+      } else {
+        this.layout.root = sibling;
+        sibling.parent = null;
+      }
+      if (this.layout.activePane === paneId) {
+        this.layout.activePane = this.getFirstPaneId(sibling);
+      }
+      this.notifyChange();
+    }
+  }
+  /**
+   * Get first pane ID in tree
+   */
+  getFirstPaneId(node) {
+    if (node.type === "pane") {
+      return node.id;
+    }
+    return this.getFirstPaneId(node.children[0]);
+  }
+  /**
+   * Set active pane
+   */
+  setActivePane(paneId) {
+    const node = this.findNode(paneId);
+    if (node && node.type === "pane") {
+      this.layout.activePane = paneId;
+      this.notifyChange();
+    }
+  }
+  /**
+   * Get active pane ID
+   */
+  getActivePane() {
+    return this.layout.activePane;
+  }
+  /**
+   * Get pane instance ID
+   */
+  getPaneInstanceId(paneId) {
+    const node = this.findNode(paneId);
+    return node == null ? void 0 : node.instanceId;
+  }
+  /**
+   * Set pane instance ID
+   */
+  setPaneInstanceId(paneId, instanceId) {
+    const node = this.findNode(paneId);
+    if (node && node.type === "pane") {
+      node.instanceId = instanceId;
+      this.notifyChange();
+    }
+  }
+  /**
+   * Get all pane IDs
+   */
+  getAllPaneIds() {
+    const panes = [];
+    this.traversePanes(this.layout.root, (node) => {
+      if (node.type === "pane") {
+        panes.push(node.id);
+      }
+    });
+    return panes;
+  }
+  /**
+   * Traverse all nodes
+   */
+  traversePanes(node, callback) {
+    callback(node);
+    if (node.type === "split" && node.children) {
+      this.traversePanes(node.children[0], callback);
+      this.traversePanes(node.children[1], callback);
+    }
+  }
+  /**
+   * Get current layout
+   */
+  getLayout() {
+    return this.layout;
+  }
+  /**
+   * Update split sizes
+   */
+  updateSplitSizes(splitId, sizes) {
+    const node = this.findNode(splitId);
+    if (node && node.type === "split") {
+      node.sizes = sizes;
+      this.notifyChange();
+    }
+  }
+  /**
+   * Navigate to next pane
+   */
+  focusNextPane() {
+    const panes = this.getAllPaneIds();
+    const currentIndex = panes.indexOf(this.layout.activePane);
+    const nextIndex = (currentIndex + 1) % panes.length;
+    this.setActivePane(panes[nextIndex]);
+  }
+  /**
+   * Navigate to previous pane
+   */
+  focusPreviousPane() {
+    const panes = this.getAllPaneIds();
+    const currentIndex = panes.indexOf(this.layout.activePane);
+    const prevIndex = currentIndex === 0 ? panes.length - 1 : currentIndex - 1;
+    this.setActivePane(panes[prevIndex]);
+  }
+  /**
+   * Notify listeners of layout change
+   */
+  notifyChange() {
+    this.onChange(this.layout);
+  }
+  /**
+   * Reset to single pane
+   */
+  reset() {
+    this.nextId = 1;
+    this.layout = {
+      root: this.createPaneNode(null, null),
+      activePane: this.nextId.toString()
+    };
+    this.nextId++;
+    this.notifyChange();
+  }
+  /**
+   * Check if pane can be split
+   */
+  canSplit(paneId) {
+    const node = this.findNode(paneId);
+    return node !== null && node.type === "pane";
+  }
+  /**
+   * Check if pane can be closed
+   */
+  canClose(paneId) {
+    const node = this.findNode(paneId);
+    if (!node || node.type !== "pane") {
+      return false;
+    }
+    return node.parent !== null;
+  }
+};
+
+// src/components/SplitPaneRenderer.ts
+var SplitPaneRenderer = class {
+  constructor(container, callbacks) {
+    this.paneElements = /* @__PURE__ */ new Map();
+    this.resizing = null;
+    this.container = container;
+    this.callbacks = callbacks;
+    document.addEventListener("mousemove", this.handleMouseMove.bind(this));
+    document.addEventListener("mouseup", this.handleMouseUp.bind(this));
+  }
+  /**
+   * Render the layout
+   */
+  render(layout) {
+    this.container.empty();
+    this.paneElements.clear();
+    const rootEl = this.renderNode(layout.root, layout.activePane);
+    this.container.appendChild(rootEl);
+  }
+  /**
+   * Render a node (recursive)
+   */
+  renderNode(node, activePane) {
+    if (node.type === "pane") {
+      return this.renderPane(node, activePane);
+    } else {
+      return this.renderSplit(node, activePane);
+    }
+  }
+  /**
+   * Render a pane
+   */
+  renderPane(node, activePane) {
+    const paneEl = createDiv({
+      cls: "split-pane",
+      attr: {
+        "data-pane-id": node.id,
+        "data-instance-id": node.instanceId || ""
+      }
+    });
+    if (node.id === activePane) {
+      paneEl.addClass("active");
+    }
+    paneEl.addEventListener("click", (e) => {
+      if (e.target === paneEl) {
+        this.callbacks.onPaneClick(node.id);
+      }
+    });
+    this.paneElements.set(node.id, paneEl);
+    return paneEl;
+  }
+  /**
+   * Render a split
+   */
+  renderSplit(node, activePane) {
+    const splitEl = createDiv({
+      cls: `split-container split-${node.direction}`,
+      attr: { "data-split-id": node.id }
+    });
+    if (!node.children || node.children.length !== 2) {
+      return splitEl;
+    }
+    const [child1, child2] = node.children;
+    const [size1, size2] = node.sizes || [50, 50];
+    const child1El = this.renderNode(child1, activePane);
+    if (node.direction === "horizontal") {
+      child1El.style.width = `${size1}%`;
+    } else {
+      child1El.style.height = `${size1}%`;
+    }
+    splitEl.appendChild(child1El);
+    const handleEl = this.createResizeHandle(node.id, node.direction);
+    splitEl.appendChild(handleEl);
+    const child2El = this.renderNode(child2, activePane);
+    if (node.direction === "horizontal") {
+      child2El.style.width = `${size2}%`;
+    } else {
+      child2El.style.height = `${size2}%`;
+    }
+    splitEl.appendChild(child2El);
+    return splitEl;
+  }
+  /**
+   * Create resize handle
+   */
+  createResizeHandle(splitId, direction) {
+    const handle = createDiv({
+      cls: `split-resize-handle split-resize-handle-${direction}`,
+      attr: { "data-split-id": splitId }
+    });
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const parent = handle.parentElement;
+      if (!parent)
+        return;
+      const rect = parent.getBoundingClientRect();
+      const startPos = direction === "horizontal" ? e.clientX : e.clientY;
+      const totalSize = direction === "horizontal" ? rect.width : rect.height;
+      const child1 = parent.children[0];
+      const child1Size = direction === "horizontal" ? child1.offsetWidth : child1.offsetHeight;
+      const size1Percent = child1Size / totalSize * 100;
+      const size2Percent = 100 - size1Percent;
+      this.resizing = {
+        splitId,
+        startPos,
+        startSizes: [size1Percent, size2Percent]
+      };
+      handle.addClass("resizing");
+    });
+    return handle;
+  }
+  /**
+   * Handle mouse move during resize
+   */
+  handleMouseMove(e) {
+    if (!this.resizing)
+      return;
+    const handleEl = this.container.querySelector(`[data-split-id="${this.resizing.splitId}"]`);
+    if (!handleEl)
+      return;
+    const parent = handleEl.parentElement;
+    if (!parent)
+      return;
+    const splitContainer = parent.parentElement;
+    if (!splitContainer)
+      return;
+    const direction = splitContainer.hasClass("split-horizontal") ? "horizontal" : "vertical";
+    const rect = parent.getBoundingClientRect();
+    const totalSize = direction === "horizontal" ? rect.width : rect.height;
+    const currentPos = direction === "horizontal" ? e.clientX : e.clientY;
+    const delta = currentPos - this.resizing.startPos;
+    const deltaPercent = delta / totalSize * 100;
+    let size1 = this.resizing.startSizes[0] + deltaPercent;
+    let size2 = this.resizing.startSizes[1] - deltaPercent;
+    size1 = Math.max(10, Math.min(90, size1));
+    size2 = 100 - size1;
+    const child1 = parent.children[0];
+    const child2 = parent.children[2];
+    if (direction === "horizontal") {
+      child1.style.width = `${size1}%`;
+      child2.style.width = `${size2}%`;
+    } else {
+      child1.style.height = `${size1}%`;
+      child2.style.height = `${size2}%`;
+    }
+  }
+  /**
+   * Handle mouse up (end resize)
+   */
+  handleMouseUp() {
+    var _a;
+    if (!this.resizing)
+      return;
+    const handleEl = this.container.querySelector(`[data-split-id="${this.resizing.splitId}"]`);
+    if (handleEl) {
+      handleEl.removeClass("resizing");
+    }
+    const parent = handleEl == null ? void 0 : handleEl.parentElement;
+    if (parent) {
+      const direction = ((_a = parent.parentElement) == null ? void 0 : _a.hasClass("split-horizontal")) ? "horizontal" : "vertical";
+      const child1 = parent.children[0];
+      const rect = parent.getBoundingClientRect();
+      const totalSize = direction === "horizontal" ? rect.width : rect.height;
+      const child1Size = direction === "horizontal" ? child1.offsetWidth : child1.offsetHeight;
+      const size1Percent = child1Size / totalSize * 100;
+      const size2Percent = 100 - size1Percent;
+      this.callbacks.onSplitResize(this.resizing.splitId, [size1Percent, size2Percent]);
+    }
+    this.resizing = null;
+  }
+  /**
+   * Get pane element
+   */
+  getPaneElement(paneId) {
+    return this.paneElements.get(paneId);
+  }
+  /**
+   * Destroy renderer
+   */
+  destroy() {
+    document.removeEventListener("mousemove", this.handleMouseMove);
+    document.removeEventListener("mouseup", this.handleMouseUp);
+    this.paneElements.clear();
+  }
+};
+
 // src/components/TerminalTabs.ts
 var import_obsidian3 = require("obsidian");
 var TerminalTabs = class {
@@ -11087,6 +11515,12 @@ var TerminalPanel = class {
     return this.status;
   }
   /**
+   * Get container element
+   */
+  getContainer() {
+    return this.container;
+  }
+  /**
    * Destroy panel
    */
   destroy() {
@@ -11560,15 +11994,20 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
     this.tabs = null;
     this.panels = /* @__PURE__ */ new Map();
     this.actionBar = null;
+    this.splitRenderer = null;
     // DOM Elements
     this.headerEl = null;
     this.tabsEl = null;
     this.panelsContainer = null;
+    this.splitContainer = null;
     this.actionsEl = null;
     this.actionBarEl = null;
     this.plugin = plugin;
     this.terminalManager = new TerminalManager();
     this.claudeIntegration = new ClaudeIntegration(this.app);
+    this.splitLayoutManager = new SplitLayoutManager((layout) => {
+      this.renderSplitLayout();
+    });
   }
   getViewType() {
     return CLAUDE_TERMINAL_VIEW_TYPE;
@@ -11614,7 +12053,18 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
       const activePanel = this.getActivePanel();
       activePanel == null ? void 0 : activePanel.write(text);
     });
+    this.splitContainer = contentEl.createDiv({ cls: "claude-terminal-split-container" });
+    this.splitRenderer = new SplitPaneRenderer(this.splitContainer, {
+      onPaneClick: (paneId) => {
+        this.splitLayoutManager.setActivePane(paneId);
+        this.focusPaneTerminal(paneId);
+      },
+      onSplitResize: (splitId, sizes) => {
+        this.splitLayoutManager.updateSplitSizes(splitId, sizes);
+      }
+    });
     this.panelsContainer = contentEl.createDiv({ cls: "claude-terminal-panels" });
+    this.panelsContainer.style.display = "none";
     this.terminalManager.onChange((instances, activeId) => {
       var _a;
       (_a = this.tabs) == null ? void 0 : _a.update(instances, activeId);
@@ -11816,11 +12266,109 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
   getClaudeIntegration() {
     return this.claudeIntegration;
   }
+  // === Split Pane Methods ===
+  /**
+   * Split current pane horizontally
+   */
+  async splitHorizontal() {
+    const activePane = this.splitLayoutManager.getActivePane();
+    if (!this.splitLayoutManager.canSplit(activePane)) {
+      return;
+    }
+    const newInstanceId = await this.createNewTerminal();
+    const newPaneId = this.splitLayoutManager.splitPane(activePane, "horizontal", newInstanceId);
+    if (newPaneId) {
+      const currentInstanceId = this.terminalManager.getActiveInstanceId();
+      if (currentInstanceId) {
+        this.splitLayoutManager.setPaneInstanceId(activePane, currentInstanceId);
+      }
+    }
+  }
+  /**
+   * Split current pane vertically
+   */
+  async splitVertical() {
+    const activePane = this.splitLayoutManager.getActivePane();
+    if (!this.splitLayoutManager.canSplit(activePane)) {
+      return;
+    }
+    const newInstanceId = await this.createNewTerminal();
+    const newPaneId = this.splitLayoutManager.splitPane(activePane, "vertical", newInstanceId);
+    if (newPaneId) {
+      const currentInstanceId = this.terminalManager.getActiveInstanceId();
+      if (currentInstanceId) {
+        this.splitLayoutManager.setPaneInstanceId(activePane, currentInstanceId);
+      }
+    }
+  }
+  /**
+   * Close current split pane
+   */
+  closeSplitPane() {
+    const activePane = this.splitLayoutManager.getActivePane();
+    if (!this.splitLayoutManager.canClose(activePane)) {
+      return;
+    }
+    const instanceId = this.splitLayoutManager.getPaneInstanceId(activePane);
+    if (instanceId) {
+      this.closeInstance(instanceId);
+    }
+    this.splitLayoutManager.closePane(activePane);
+  }
+  /**
+   * Render split layout
+   */
+  renderSplitLayout() {
+    if (!this.splitRenderer)
+      return;
+    const layout = this.splitLayoutManager.getLayout();
+    this.splitRenderer.render(layout);
+    const paneIds = this.splitLayoutManager.getAllPaneIds();
+    for (const paneId of paneIds) {
+      const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
+      if (instanceId) {
+        const panel = this.panels.get(instanceId);
+        const paneEl = this.splitRenderer.getPaneElement(paneId);
+        if (panel && paneEl) {
+          const panelContainer = paneEl.querySelector(".terminal-panel-wrapper");
+          if (!panelContainer) {
+            paneEl.appendChild(panel.getContainer());
+          }
+          panel.show();
+        }
+      }
+    }
+  }
+  /**
+   * Focus terminal in pane
+   */
+  focusPaneTerminal(paneId) {
+    const instanceId = this.splitLayoutManager.getPaneInstanceId(paneId);
+    if (instanceId) {
+      this.switchToInstance(instanceId);
+    }
+  }
+  /**
+   * Navigate to next split pane
+   */
+  focusNextSplitPane() {
+    this.splitLayoutManager.focusNextPane();
+    const activePane = this.splitLayoutManager.getActivePane();
+    this.focusPaneTerminal(activePane);
+  }
+  /**
+   * Navigate to previous split pane
+   */
+  focusPreviousSplitPane() {
+    this.splitLayoutManager.focusPreviousPane();
+    const activePane = this.splitLayoutManager.getActivePane();
+    this.focusPaneTerminal(activePane);
+  }
   /**
    * Cleanup on close
    */
   async onClose() {
-    var _a, _b;
+    var _a, _b, _c;
     for (const panel of this.panels.values()) {
       panel.destroy();
     }
@@ -11828,6 +12376,7 @@ var ClaudeTerminalView = class extends import_obsidian6.ItemView {
     this.terminalManager.clear();
     (_a = this.tabs) == null ? void 0 : _a.destroy();
     (_b = this.actionBar) == null ? void 0 : _b.destroy();
+    (_c = this.splitRenderer) == null ? void 0 : _c.destroy();
   }
 };
 
@@ -12350,6 +12899,54 @@ var ClaudeCodeTerminalPlugin = class extends import_obsidian8.Plugin {
       name: "Reference Current File in Claude (@path)",
       callback: () => this.linkFileInClaude()
     });
+    this.addCommand({
+      id: "split-terminal-horizontal",
+      name: "Split Terminal Horizontally",
+      callback: () => this.splitHorizontal(),
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "s" }]
+    });
+    this.addCommand({
+      id: "split-terminal-vertical",
+      name: "Split Terminal Vertically",
+      callback: () => this.splitVertical(),
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "v" }]
+    });
+    this.addCommand({
+      id: "close-split-pane",
+      name: "Close Split Pane",
+      callback: () => this.closeSplitPane(),
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "w" }]
+    });
+    this.addCommand({
+      id: "focus-next-split-pane",
+      name: "Focus Next Split Pane",
+      callback: () => this.focusNextSplitPane(),
+      hotkeys: [{ modifiers: ["Mod"], key: "ArrowRight" }]
+    });
+    this.addCommand({
+      id: "focus-previous-split-pane",
+      name: "Focus Previous Split Pane",
+      callback: () => this.focusPreviousSplitPane(),
+      hotkeys: [{ modifiers: ["Mod"], key: "ArrowLeft" }]
+    });
+    this.addCommand({
+      id: "action-send-selection",
+      name: "Action Bar: Send Selection",
+      callback: () => this.sendSelectionToClaude(),
+      hotkeys: [{ modifiers: ["Alt"], key: "1" }]
+    });
+    this.addCommand({
+      id: "action-send-note",
+      name: "Action Bar: Send Note",
+      callback: () => this.sendNoteToClaude(),
+      hotkeys: [{ modifiers: ["Alt"], key: "2" }]
+    });
+    this.addCommand({
+      id: "action-reference-file",
+      name: "Action Bar: Reference File",
+      callback: () => this.linkFileInClaude(),
+      hotkeys: [{ modifiers: ["Alt"], key: "3" }]
+    });
   }
   /**
    * Register context menus
@@ -12551,6 +13148,42 @@ var ClaudeCodeTerminalPlugin = class extends import_obsidian8.Plugin {
     await this.activateView();
     const view = this.getTerminalView();
     await (view == null ? void 0 : view.getClaudeIntegration().sendFileReference());
+  }
+  // === Split Pane Methods ===
+  /**
+   * Split terminal horizontally
+   */
+  splitHorizontal() {
+    const view = this.getTerminalView();
+    view == null ? void 0 : view.splitHorizontal();
+  }
+  /**
+   * Split terminal vertically
+   */
+  splitVertical() {
+    const view = this.getTerminalView();
+    view == null ? void 0 : view.splitVertical();
+  }
+  /**
+   * Close current split pane
+   */
+  closeSplitPane() {
+    const view = this.getTerminalView();
+    view == null ? void 0 : view.closeSplitPane();
+  }
+  /**
+   * Focus next split pane
+   */
+  focusNextSplitPane() {
+    const view = this.getTerminalView();
+    view == null ? void 0 : view.focusNextSplitPane();
+  }
+  /**
+   * Focus previous split pane
+   */
+  focusPreviousSplitPane() {
+    const view = this.getTerminalView();
+    view == null ? void 0 : view.focusPreviousSplitPane();
   }
   /**
    * Get vault base path
